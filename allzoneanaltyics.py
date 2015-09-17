@@ -1,4 +1,4 @@
-import ninjapanel, os, json, requests, argparse
+import os, json, requests, argparse
 from collections import OrderedDict
 from operator import itemgetter
 
