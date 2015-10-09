@@ -1,15 +1,16 @@
+#! /usr/bin/python
 import json, cloudconnect, requests, argparse, time, sys
 
 ''' 
 Examples:
 # Create www CNAME pointed to root and Orange Cloud
-python massDNSupdates.py --key xxxx --email me@you.com --new --proxy --record_name www --record_type CNAME --content @
+python massDNSupdates.py --key xxxx --email me@you.com --new --proxy --record-name www --record-type CNAME --content @
 
 # Delete www CNAME
-python massDNSupdates.py --key xxxx --email me@you.com --delete --record_name www --record_type CNAME
+python massDNSupdates.py --key xxxx --email me@you.com --delete --record-name www --record-type CNAME
 
 # Modify www CNAME records and Grey cloud
-python massDNSupdates.py --key xxxx --email me@you.com --edit --no-proxy --record_name www --record_type CNAME --content sub.domain.com
+python massDNSupdates.py --key xxxx --email me@you.com --edit --no-proxy --record-name www --record-type CNAME --content sub.domain.com
 
 '''
 
@@ -24,15 +25,15 @@ parser.add_argument('--identity', help='Use this instead of key and email if you
 parser.add_argument('--new', help='Create new DNS records', action='store_true')
 parser.add_argument('--delete', help='Delete DNS records', action='store_true')
 parser.add_argument('--edit', help='Modify DNS records', action='store_true')
+parser.add_argument('--view', help='View DNS records', action='store_true')
 parser.add_argument('--exclude', help='Exclude domains') # Future Dev
-parser.add_argument('--exclude_file', help='Exclude list of domains from file') # Future Dev
 
 # DNS parameters
 parser.add_argument('--content', help='Where the record will resolve to')
-parser.add_argument('--record_name', help='If not defined root will be chosen, other wise only provide subdoamain name')
-# example --record_name www
-parser.add_argument('--record_type', help='Only A records will be changed by default. You can use @ point to root domain')
-# example --record_type CNAME
+parser.add_argument('--record-name', dest='recordName', help='If not defined root will be chosen, other wise only provide subdoamain name')
+# example --record-name www
+parser.add_argument('--record-type', dest='recordType' , help='Only A records will be changed by default. You can use @ point to root domain')
+# example --record-type CNAME
 
 # Orange/Grey Cloud
 parser.add_argument('--proxy', help='Orange Cloud all records', dest='proxy', action='store_true')
@@ -57,20 +58,39 @@ while True:
       content = zName
 
     # Defaults
-    recType = 'A'
+    recType = []
     proxied = args.proxy
 
-    recName = zName
-    if args.record_name == '@':
+    # Record Name
+    if args.recordName == '@':
       recName = zName
-    elif args.record_name:
-      recName = '{}.{}'.format(args.record_name, recName)
+    elif args.recordName:
+      recName = '{}.{}'.format(args.recordName, zName)
+    else:
+      # Default to root
+      recName = zName
 
-    if args.record_type:
-      recType = args.record_type
+
+    if args.recordType:
+      recType = args.recordType.upper()
 
     if args.proxy:
       proxied = args.proxy
+
+    # View DNS records
+    if args.view:
+      listDNSRecs = cc.list_dns_records(zid, type=recType, name=recName)
+      if listDNSRecs['success']:
+        for dnsRecs in listDNSRecs['result']:
+          did = dnsRecs['id']
+          dName = dnsRecs['name']
+          dType = dnsRecs['type']
+          dContent = dnsRecs['content']
+          if dnsRecs['proxied']:
+            dProxy = '+'
+          else:
+            dProxy = '-'
+          print '{} {} {} {} {}'.format(dProxy, did, dName, dType, dContent)
 
     # Create New DNS Records
     if args.new:
