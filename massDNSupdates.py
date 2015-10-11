@@ -12,6 +12,8 @@ python massDNSupdates.py --key xxxx --email me@you.com --delete --record-name ww
 # Modify www CNAME records and Grey cloud
 python massDNSupdates.py --key xxxx --email me@you.com --edit --no-proxy --record-name www --record-type CNAME --content sub.domain.com
 
+# Content match. Only view/edit specific IP address. Useful if some zones don't share the same IP or if you have multiple IPs.
+python massDNSupdates.py --key xxxx --email me@you.com --edit --record-name www.test --record-type A --content 4.5.6.9 --content-match 4.5.6.8
 '''
 
 parser = argparse.ArgumentParser()
@@ -34,6 +36,8 @@ parser.add_argument('--record-name', dest='recordName', help='If not defined roo
 # example --record-name www
 parser.add_argument('--record-type', dest='recordType' , help='Only A records will be changed by default. You can use @ point to root domain')
 # example --record-type CNAME
+parser.add_argument('--content-match', dest='contentMatch', help='Only match this content. This helps only replace some domains.')
+# example --content-match 2.3.4.5
 
 # Orange/Grey Cloud
 parser.add_argument('--proxy', help='Orange Cloud all records', dest='proxy', action='store_true')
@@ -59,6 +63,7 @@ while True:
 
     # Defaults
     recType = []
+    contentMatch = []
     proxied = args.proxy
 
     # Record Name
@@ -77,9 +82,12 @@ while True:
     if args.proxy:
       proxied = args.proxy
 
+    if args.contentMatch:
+      contentMatch = args.contentMatch
+
     # View DNS records
     if args.view:
-      listDNSRecs = cc.list_dns_records(zid, type=recType, name=recName)
+      listDNSRecs = cc.list_dns_records(zid, type=recType, name=recName, content=contentMatch)
       if listDNSRecs['success']:
         for dnsRecs in listDNSRecs['result']:
           did = dnsRecs['id']
@@ -100,8 +108,9 @@ while True:
       else:
         print 'Tried creating {} and failed'.format(recName)
         print >> sys.stderr, 'Failure: {} Message: {}'.format(recName, createDNS)
+
     else:
-      dnsRecs = cc.list_dns_records(zid, name=recName, type=recType)
+      dnsRecs = cc.list_dns_records(zid, name=recName, type=recType, content=contentMatch)
 
       for dnsRec in dnsRecs['result']:
         recID = dnsRec['id']
