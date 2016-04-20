@@ -7,6 +7,7 @@ parser.add_argument('--email', help='CF API Email')
 parser.add_argument('--zone', help='Only lookup one zones settings')
 parser.add_argument('--dest-zone', dest='destZone', help='Copy pagerules to zone')
 parser.add_argument('--delete-all', dest='deleteAll', help='Delete all pagerules', action='store_true')
+parser.add_argument('--delete-id', dest='deleteID', help='Delete only a single pagerule')
 args = parser.parse_args()
 
 cc = cloudconnect.CloudConnect(args.email, args.key)
@@ -26,7 +27,6 @@ def check_success(apiResponse):
         pass
       return False
     except(KeyError):
-      print apiResponse
       return 'There was a failure, but no message'
   else:
     return apiResponse
@@ -61,17 +61,24 @@ def list_all_pagerules(zoneID):
   for pagerule in pagerules['result']:
     print json.dumps(pagerule)
 
-def modify_url_pattern(zonePageruleJson, destZone, matchFirst=1):
+def modify_url_pattern(zonePageruleJson, destZone):
   ''' If matchFirst is on, ignore any other matchs in the pattern. '''
   uri = zonePageruleJson['targets'][0]['constraint']['value']
   parsedUri = urlparse(uri)
   domain = parsedUri.netloc
   if parsedUri.scheme == '':
+    # A wildcard for a subdomain will break urlparse
+    subWildcard = False
+    if uri[0] == '*':
+      subWildcard = True
     # When the scheme is not present, urlparse will ignore
     uriScheme = 'http://' + uri
     parsedUri = urlparse(uriScheme)
     domain = parsedUri.netloc
-    zonePageruleJson['targets'][0]['constraint']['value'] = '{}{}'.format(destZone, parsedUri.path)
+    if subWildcard:
+      zonePageruleJson['targets'][0]['constraint']['value'] = '*{}{}'.format(destZone, parsedUri.path)
+    else:
+      zonePageruleJson['targets'][0]['constraint']['value'] = '{}{}'.format(destZone, parsedUri.path)
     return zonePageruleJson
   else:
     zonePageruleJson['targets'][0]['constraint']['value'] = '{}://{}{}'.format(parsedUri.scheme, destZone, parsedUri.path)
@@ -106,6 +113,11 @@ def transform_actions(actions):
 
 if args.deleteAll:
   delete_all_pagerule(zoneID)
+elif args.deleteID:
+  try: 
+    print check_success(cc.delete_pagerule(zoneID, args.deleteID))['success']
+  except:
+    'Something went wrong'
 elif args.destZone:
   copy_all_pagerules(zoneID, destZoneID)
 elif args.zone:
