@@ -105,8 +105,8 @@ def transform_actions(actions):
   return newActions
 
 if args.deleteAll:
-  delete_all_pagerule(destZoneID)
-if args.destZone:
+  delete_all_pagerule(zoneID)
+elif args.destZone:
   copy_all_pagerules(zoneID, destZoneID)
 elif args.zone:
   list_all_pagerules(zoneID)
