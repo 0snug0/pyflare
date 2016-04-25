@@ -1,4 +1,4 @@
-import cloudconnect, argparse, json
+import cloudconnect, argparse, json, time
 from urlparse import urlparse
 
 parser = argparse.ArgumentParser()
@@ -8,6 +8,9 @@ parser.add_argument('--zone', help='Only lookup one zones settings')
 parser.add_argument('--dest-zone', dest='destZone', help='Copy pagerules to zone')
 parser.add_argument('--delete-all', dest='deleteAll', help='Delete all pagerules', action='store_true')
 parser.add_argument('--delete-id', dest='deleteID', help='Delete only a single pagerule')
+parser.add_argument('--force', help='Force a pagerule to override an already existing rule')
+parser.add_argument('--import', help='import from a file')
+parser.add_argument('--export', help='export to file, same output of --zone, but added to a file')
 args = parser.parse_args()
 
 cc = cloudconnect.CloudConnect(args.email, args.key)
@@ -21,6 +24,7 @@ def check_success(apiResponse):
   if apiResponse['success'] == False:
     try:
       print apiResponse['errors'][0]['message']
+      return apiResponse['errors'][0]['code']
       try:
         print apiResponse['messages'][0]['message'], '\n'
       except:
@@ -35,16 +39,24 @@ def copy_all_pagerules(zoneID, destZoneID):
   zonePRs = cc.list_pagerules(zoneID)
   destZonePRs = cc.list_pagerules(zoneID)
   zonePagerulesResults = zonePRs['result']
-  for zonePagerulesResult in zonePagerulesResults:
-    mpr = modify_url_pattern(zonePagerulesResult, destZone)
+  for zonePagerulesResult in reversed(zonePagerulesResults):
+    print zonePagerulesResult['priority'], zonePagerulesResult['targets'][0]['constraint']['value']
+    mpr = modify_url_pattern(zonePagerulesResult, zone, destZone)
     for z in mpr:
       targets = mpr['targets']
       actions = transform_actions(mpr['actions'])
       priority = mpr['priority']
       status = mpr['status']
+    print 'creating page rule priority {}'.format(priority)
+    pageruleAttempt = 1
+    time.sleep(2)
     createPagerule = cc.create_pagerule(destZoneID, targets=targets, actions=actions, priority=priority, status=status)
-    if check_success(createPagerule):
-      print 'Pagerule succesfully copied'
+    if check_success(createPagerule) == True:
+      print 'Pagerule successfully copied'
+    elif check_success(createPagerule) == 1004:
+      pass
+    else:
+      pass
 
 def delete_all_pagerule(zoneID):
   pagerules = cc.list_pagerules(zoneID)
@@ -61,28 +73,12 @@ def list_all_pagerules(zoneID):
   for pagerule in pagerules['result']:
     print json.dumps(pagerule)
 
-def modify_url_pattern(zonePageruleJson, destZone):
+def modify_url_pattern(zonePageruleJson, zone, destZone):
   ''' If matchFirst is on, ignore any other matchs in the pattern. '''
   uri = zonePageruleJson['targets'][0]['constraint']['value']
-  parsedUri = urlparse(uri)
-  domain = parsedUri.netloc
-  if parsedUri.scheme == '':
-    # A wildcard for a subdomain will break urlparse
-    subWildcard = False
-    if uri[0] == '*':
-      subWildcard = True
-    # When the scheme is not present, urlparse will ignore
-    uriScheme = 'http://' + uri
-    parsedUri = urlparse(uriScheme)
-    domain = parsedUri.netloc
-    if subWildcard:
-      zonePageruleJson['targets'][0]['constraint']['value'] = '*{}{}'.format(destZone, parsedUri.path)
-    else:
-      zonePageruleJson['targets'][0]['constraint']['value'] = '{}{}'.format(destZone, parsedUri.path)
-    return zonePageruleJson
-  else:
-    zonePageruleJson['targets'][0]['constraint']['value'] = '{}://{}{}'.format(parsedUri.scheme, destZone, parsedUri.path)
-    return zonePageruleJson
+  uri = uri.replace(zone, destZone)
+  zonePageruleJson['targets'][0]['constraint']['value'] = uri
+  return zonePageruleJson
 
 def modify_host(actions, zone, destZone):
   newActions = []
@@ -111,14 +107,16 @@ def transform_actions(actions):
   newActions = remove_railgun_option(actions)
   return newActions
 
-if args.deleteAll:
-  delete_all_pagerule(zoneID)
-elif args.deleteID:
-  try: 
-    print check_success(cc.delete_pagerule(zoneID, args.deleteID))['success']
-  except:
-    'Something went wrong'
-elif args.destZone:
-  copy_all_pagerules(zoneID, destZoneID)
-elif args.zone:
-  list_all_pagerules(zoneID)
+if __name__ == '__main__':
+  if args.deleteAll:
+    delete_all_pagerule(zoneID)
+  elif args.deleteID:
+    try: 
+      print check_success(cc.delete_pagerule(zoneID, args.deleteID))['success']
+    except:
+      'Something went wrong'
+  elif args.destZone:
+    copy_all_pagerules(zoneID, destZoneID)
+  elif args.zone:
+    list_all_pagerules(zoneID)
+
