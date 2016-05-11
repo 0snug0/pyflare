@@ -13,10 +13,7 @@ allow = [args.allow]
 block_list = [block for block in ABBV if block not in allow]
 
 cc = cloudconnect.CloudConnect(args.email, args.key)
-
-domain = args.domain
-
-zid = cc.get_zone_id(domain)
+zid = cc.get_zone_id(args.domain)
 
 for b in block_list:
   print b
