@@ -20,7 +20,7 @@ zid = cc.get_zone_id(args.domain)
 
 # Deletes first 100 only, run again if more than 100 need to be deleted
 if args.mode == 'delete':
-  firewall_list = cc.list_firewall_rules(zid, configuration_target='country', per_page:100)
+  firewall_list = cc.list_firewall_rules(zid, configuration_target='country', per_page=100)
   for fwl in firewall_list['result']:
     fwID = fwl['id']
     print fwID
